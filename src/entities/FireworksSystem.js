@@ -319,7 +319,7 @@ export class FireworksSystem {
     return this.sparklerActive ? 'Sparkler ignited! Crackling bright golden sparks!' : 'Sparkler put out.';
   }
 
-  update(delta, player, village) {
+  update(delta, player, village, breakables) {
     // 1. Update Rockets
     for (let i = this.activeRockets.length - 1; i >= 0; i--) {
       const r = this.activeRockets[i];
@@ -442,7 +442,13 @@ export class FireworksSystem {
       sb.life += delta;
 
       let hit = false;
-      if (village && village.snowmen) {
+
+      // Check collision with breakable targets (Glass Orbs, Pyramids)
+      if (breakables && breakables.checkSnowballHit(sb.mesh.position, sb.velocity)) {
+        hit = true;
+      }
+
+      if (!hit && village && village.snowmen) {
         for (const sm of village.snowmen) {
           if (sb.mesh.position.distanceTo(sm.group.position) < 2.0) {
             hit = true;

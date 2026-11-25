@@ -214,41 +214,43 @@ body, html {
   color: #ffd700;
 }
 
-/* --- TOAST NOTIFICATIONS --- */
+/* --- TOAST NOTIFICATIONS (CLEAN SINGLE TOAST, NO OVERLAPPING SPAM) --- */
 #toast-container {
   position: absolute;
-  top: 90px;
+  top: 76px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: center;
   align-items: center;
   pointer-events: none;
   z-index: 100;
+  max-width: 90vw;
 }
 
 .toast-message {
-  background: rgba(10, 16, 36, 0.88);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(14, 22, 45, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid #ffd700;
   color: #ffffff;
-  padding: 9px 20px;
-  border-radius: 20px;
-  font-size: 13px;
+  padding: 8px 22px;
+  border-radius: 24px;
+  font-size: 13.5px;
   font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: toastPop 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), 0 0 14px rgba(255, 215, 0, 0.3);
+  text-align: center;
+  animation: toastPop 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
 .toast-message.fade-out {
   opacity: 0;
-  transform: translateY(-10px);
+  transform: translateY(-8px) scale(0.95);
 }
 
 @keyframes toastPop {
-  0% { transform: scale(0.8) translateY(-15px); opacity: 0; }
+  0% { transform: scale(0.85) translateY(-10px); opacity: 0; }
   100% { transform: scale(1.0) translateY(0); opacity: 1; }
 }
 
@@ -303,6 +305,33 @@ body, html {
   border-color: #ffd700;
   box-shadow: 0 0 18px rgba(255, 215, 0, 0.5);
   transform: translateY(-6px) scale(1.06);
+}
+
+.hotbar-slot.locked {
+  opacity: 0.42;
+  filter: grayscale(0.8);
+  border: 2px dashed rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.hotbar-slot.locked:hover {
+  opacity: 0.75;
+  transform: translateY(-2px);
+  border-color: #ffd700;
+}
+
+.slot-lock {
+  position: absolute;
+  top: 17px;
+  font-size: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
+  animation: lockBob 2.0s infinite alternate ease-in-out;
+}
+
+@keyframes lockBob {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2px); }
 }
 
 .slot-key {

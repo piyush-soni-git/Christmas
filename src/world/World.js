@@ -345,20 +345,20 @@ export class World {
   setTimeOfDay(mode) {
     this.timeOfDay = mode;
     if (mode === 'day') {
-      this.scene.background.set(0x7eaed9);
-      this.scene.fog.color.set(0x94bee3);
-      this.lights.ambient.color.set(0x99bbdd);
-      this.lights.ambient.intensity = 1.1;
-      this.lights.moon.color.set(0xfffae8);
-      this.lights.moon.intensity = 1.5;
+      this.scene.background.set(0x90caf9);
+      this.scene.fog.color.set(0xbcd9f5);
+      this.lights.ambient.color.set(0xd0e2ec);
+      this.lights.ambient.intensity = 1.15;
+      this.lights.moon.color.set(0xfffaed);
+      this.lights.moon.intensity = 1.35;
       if (this.auroraMesh) this.auroraMesh.visible = false;
     } else if (mode === 'sunset') {
-      this.scene.background.set(0x281938);
-      this.scene.fog.color.set(0x381f3d);
-      this.lights.ambient.color.set(0x6b446a);
-      this.lights.ambient.intensity = 0.9;
-      this.lights.moon.color.set(0xff9955);
-      this.lights.moon.intensity = 1.2;
+      this.scene.background.set(0x281a38);
+      this.scene.fog.color.set(0x322044);
+      this.lights.ambient.color.set(0x828ca8);
+      this.lights.ambient.intensity = 0.95;
+      this.lights.moon.color.set(0xffc2d1); // Magical Alpenglow rosy pink
+      this.lights.moon.intensity = 1.25;
       if (this.auroraMesh) this.auroraMesh.visible = true;
     } else {
       this.scene.background.set(0x0a1024);
