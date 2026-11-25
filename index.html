@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Christmas Simulator 🎄 - St. Nicholas Alpine Village</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎄</text></svg>">
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <!-- 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- HUD Interface -->
+  <div id="hud">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand-card">
+        <span class="brand-icon">🎄</span>
+        <div>
+          <h1 class="brand-title">Christmas Simulator</h1>
+          <p class="brand-subtitle">St. Nicholas Alpine Village</p>
+        </div>
+      </div>
+
+      <!-- Christmas Cheer Meter -->
+      <div class="cheer-container">
+        <span class="cheer-header" id="cheer-text">Cheer: 20% (Village Elf)</span>
+        <div class="cheer-track">
+          <div class="cheer-fill" id="cheer-fill"></div>
+        </div>
+      </div>
+
+      <!-- Settings & Controls -->
+      <div class="top-controls">
+        <button class="hud-btn" id="btn-mute">🔊 Sound: ON</button>
+        <button class="hud-btn" id="btn-music">🎵 Music: ON</button>
+        <button class="hud-btn" id="btn-time">🌌 Night (Aurora)</button>
+        <button class="hud-btn" id="btn-photo">📷 Photo</button>
+        <button class="hud-btn" id="btn-help">❓ Help</button>
+      </div>
+    </header>
+
+    <!-- Contextual Interaction Prompt -->
+    <div class="interaction-wrapper">
+      <div id="interaction-prompt">
+        <span class="prompt-key">E</span>
+        <div class="prompt-info">
+          <span class="prompt-title" id="prompt-title">Cathedral Bells</span>
+          <span class="prompt-action" id="prompt-action">Ring Cathedral Chimes</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toasts -->
+    <div id="toast-container"></div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+      <div id="joystick-zone">
+        <div id="joystick-thumb"></div>
+      </div>
+      <div class="mobile-actions">
+        <button class="mobile-btn" id="btn-mobile-action">USE</button>
+        <button class="mobile-btn" id="btn-mobile-jump">JUMP</button>
+        <button class="mobile-btn" id="btn-mobile-interact">E</button>
+      </div>
+    </div>
+
+    <!-- Bottom Hotbar -->
+    <footer class="bottom-section">
+      <div id="hotbar"></div>
+    </footer>
+  </div>
+
+  <!-- Photo Watermark (for Photo Mode) -->
+  <div id="photo-watermark">🎄 Christmas Simulator • Alpine Village</div>
+
+  <!-- Help & Controls Modal -->
+  <div id="help-modal">
+    <div class="modal-card">
+      <h2 class="modal-title">Welcome to Christmas Simulator! 🎅</h2>
+
+      <div class="modal-section">
+        <h4>🎮 Movement & Exploration</h4>
+        <ul>
+          <li><span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> / Arrows: Move character</li>
+          <li><span class="key-badge">Shift</span>: Sprint on fresh snow</li>
+          <li><span class="key-badge">Space</span>: Jump</li>
+          <li><span class="key-badge">Mouse Drag</span>: Look & Orbit Camera</li>
+          <li><span class="key-badge">V</span>: Toggle 1st Person / 3rd Person</li>
+        </ul>
+      </div>
+
+      <div class="modal-section">
+        <h4>🎆 Festive Activities & Fireworks</h4>
+        <ul>
+          <li><span class="key-badge">1 - 8</span> or <span class="key-badge">Click Hotbar</span>: Select holiday novelty</li>
+          <li><span class="key-badge">Left Click</span> / <span class="key-badge">F</span>: Use active item (throw snowball, fire rocket, plant fountain, pop cracker, place gift, drink cocoa, ring bells)</li>
+          <li><span class="key-badge">E</span>: Interact with Village spots (Great Tree Light Show, Cathedral Bell Tower, Elf Barnaby's Stall, Hot Cocoa Chalet, Santa's Sleigh, Snowmen)</li>
+        </ul>
+      </div>
+
+      <div class="modal-section">
+        <h4>🌟 Christmas Cheer</h4>
+        <p>Spread holiday joy by launching fireworks, ringing church bells, opening mystery presents, and drinking hot cocoa to reach 100% Christmas Cheer!</p>
+      </div>
+
+      <button class="modal-close-btn" id="btn-close-modal">Let's Celebrate! 🎄</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "christmas_simulator",
+  "version": "1.0.0",
+  "description": "Christmas Simulator - A cozy 3D holiday celebration game inspired by Diwali Simulator",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.181.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0"
+  }
+}
