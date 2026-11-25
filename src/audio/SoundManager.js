@@ -1,5 +1,5 @@
-// Procedural Web Audio API Sound Generator for Christmas Simulator
-// 100% self-contained, no external audio assets needed!
+// High-Performance Procedural Web Audio API Sound Generator for Christmas Simulator
+// 100% Zero-GC during gameplay: Pre-allocated shared noise buffers, cached audio nodes
 
 export class SoundManager {
   constructor() {
@@ -12,30 +12,57 @@ export class SoundManager {
     this.currentMelodyIndex = 0;
     this.musicTimer = null;
     this.initialized = false;
+
+    // Pre-allocated shared buffers to prevent Garbage Collection pauses
+    this.cachedNoiseBuffer = null;
+    this.cachedCrunchBuffer = null;
   }
 
   init() {
     if (this.initialized) return;
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioContext();
+      this.ctx = new AudioContext({ latencyHint: 'interactive' });
       
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
 
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+      this.musicGain.gain.setValueAtTime(0.25, this.ctx.currentTime);
       this.musicGain.connect(this.masterGain);
 
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.setValueAtTime(0.7, this.ctx.currentTime);
       this.sfxGain.connect(this.masterGain);
 
+      this.prebuildNoiseBuffers();
+
       this.initialized = true;
       this.startMusic();
     } catch (e) {
       console.warn('AudioContext failed to initialize:', e);
+    }
+  }
+
+  prebuildNoiseBuffers() {
+    if (!this.ctx) return;
+    const sampleRate = this.ctx.sampleRate;
+
+    // 1. Long 2-second shared noise buffer for fireworks and crackles
+    const noiseLen = sampleRate * 2;
+    this.cachedNoiseBuffer = this.ctx.createBuffer(1, noiseLen, sampleRate);
+    const nData = this.cachedNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) {
+      nData[i] = Math.random() * 2 - 1;
+    }
+
+    // 2. Pre-computed 0.1-second snow crunch buffer
+    const crunchLen = Math.floor(sampleRate * 0.1);
+    this.cachedCrunchBuffer = this.ctx.createBuffer(1, crunchLen, sampleRate);
+    const cData = this.cachedCrunchBuffer.getChannelData(0);
+    for (let i = 0; i < crunchLen; i++) {
+      cData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / crunchLen, 1.5);
     }
   }
 
@@ -51,26 +78,24 @@ export class SoundManager {
   toggleMute() {
     this.ensureContext();
     this.isMuted = !this.isMuted;
-    if (this.masterGain) {
+    if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.8, this.ctx.currentTime);
     }
     return !this.isMuted;
   }
 
-  // --- CHURCH BELL (Cathedral Carillon) ---
+  // --- CHURCH BELL (Cathedral Carillon with Additive Overtones) ---
   playChurchBell(freq = 220) {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
 
     const now = this.ctx.currentTime;
-    // Church bell partials: hum (0.5), prime (1.0), tierce (1.2), quint (1.5), nominal (2.0), superquint (3.0)
     const partials = [
-      { ratio: 0.5, gain: 0.5, decay: 4.5 },
-      { ratio: 1.0, gain: 0.8, decay: 3.5 },
-      { ratio: 1.2, gain: 0.45, decay: 2.8 },
-      { ratio: 1.5, gain: 0.35, decay: 2.4 },
-      { ratio: 2.0, gain: 0.25, decay: 2.0 },
-      { ratio: 3.0, gain: 0.15, decay: 1.2 }
+      { ratio: 0.5, gain: 0.45, decay: 4.0 },
+      { ratio: 1.0, gain: 0.75, decay: 3.2 },
+      { ratio: 1.2, gain: 0.4, decay: 2.6 },
+      { ratio: 1.5, gain: 0.3, decay: 2.2 },
+      { ratio: 2.0, gain: 0.2, decay: 1.8 }
     ];
 
     partials.forEach(p => {
@@ -79,7 +104,7 @@ export class SoundManager {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq * p.ratio, now);
 
-      gain.gain.setValueAtTime(p.gain * 0.35, now);
+      gain.gain.setValueAtTime(p.gain * 0.3, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + p.decay);
 
       osc.connect(gain);
@@ -88,52 +113,32 @@ export class SoundManager {
       osc.start(now);
       osc.stop(now + p.decay);
     });
-
-    // Metallic strike transient
-    this.playStrikeTransient(freq, now);
   }
 
-  playStrikeTransient(freq, time) {
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq * 4.2, time);
-    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, time + 0.08);
-
-    gain.gain.setValueAtTime(0.4, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start(time);
-    osc.stop(time + 0.08);
-  }
-
-  // --- SLEIGH / JINGLE BELLS ---
+  // --- JINGLE BELLS ---
   playJingleBells(count = 3) {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
 
+    const freqs = [2100, 2550, 3100];
     for (let i = 0; i < count; i++) {
-      const delay = i * 0.09;
-      setTimeout(() => {
-        const time = this.ctx.currentTime;
-        const freqs = [2000, 2480, 2960, 3520];
-        freqs.forEach(f => {
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(f + (Math.random() * 80 - 40), time);
+      const delay = i * 0.08;
+      const time = this.ctx.currentTime + delay;
 
-          gain.gain.setValueAtTime(0.08, time);
-          gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
+      freqs.forEach(f => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f + (Math.random() * 60 - 30), time);
 
-          osc.connect(gain);
-          gain.connect(this.sfxGain);
-          osc.start(time);
-          osc.stop(time + 0.25);
-        });
-      }, delay * 1000);
+        gain.gain.setValueAtTime(0.06, time);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.22);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(time);
+        osc.stop(time + 0.22);
+      });
     }
   }
 
@@ -143,31 +148,29 @@ export class SoundManager {
     if (!this.ctx || this.isMuted) return;
 
     const time = this.ctx.currentTime;
-    // Whistle sound
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(320, time);
-    osc.frequency.exponentialRampToValueAtTime(1400, time + 1.1);
+    osc.frequency.setValueAtTime(300, time);
+    osc.frequency.exponentialRampToValueAtTime(1350, time + 1.0);
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.setValueAtTime(800, time);
-    filter.Q.value = 4.0;
+    filter.Q.value = 3.5;
 
     gain.gain.setValueAtTime(0.01, time);
-    gain.gain.linearRampToValueAtTime(0.18, time + 0.3);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+    gain.gain.linearRampToValueAtTime(0.16, time + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.05);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(this.sfxGain);
 
     osc.start(time);
-    osc.stop(time + 1.2);
+    osc.stop(time + 1.05);
 
-    // Hissing exhaust noise
-    this.playNoise(time, 1.1, 0.12, 1200);
+    this.playSharedNoise(time, 0.9, 0.1, 1100);
   }
 
   // --- FIREWORK EXPLOSION BOOM ---
@@ -177,31 +180,22 @@ export class SoundManager {
 
     const time = this.ctx.currentTime;
 
-    // Sub-bass thump
+    // Sub-bass punch
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(140, time);
-    osc.frequency.exponentialRampToValueAtTime(35, time + 0.7);
+    osc.frequency.setValueAtTime(130, time);
+    osc.frequency.exponentialRampToValueAtTime(32, time + 0.65);
 
     gain.gain.setValueAtTime(0.7, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.9);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(time);
-    osc.stop(time + 0.9);
+    osc.stop(time + 0.8);
 
-    // Crackling blast noise
-    this.playNoise(time, 0.8, 0.45, 600);
-
-    // Sparkling crackles delayed
-    for (let i = 0; i < 6; i++) {
-      setTimeout(() => {
-        if (!this.ctx || this.isMuted) return;
-        this.playPop(this.ctx.currentTime, 0.05 + Math.random() * 0.05);
-      }, 350 + i * 90 + Math.random() * 60);
-    }
+    this.playSharedNoise(time, 0.75, 0.4, 550);
   }
 
   // --- CHRISTMAS CRACKER SNAP & POP ---
@@ -210,62 +204,46 @@ export class SoundManager {
     if (!this.ctx || this.isMuted) return;
 
     const time = this.ctx.currentTime;
-    // Snap high click
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(1200, time);
-    osc.frequency.exponentialRampToValueAtTime(80, time + 0.06);
+    osc.frequency.setValueAtTime(1100, time);
+    osc.frequency.exponentialRampToValueAtTime(80, time + 0.05);
 
-    gain.gain.setValueAtTime(0.5, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
+    gain.gain.setValueAtTime(0.45, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(time);
-    osc.stop(time + 0.07);
+    osc.stop(time + 0.06);
 
-    // Sharp burst of noise
-    this.playNoise(time, 0.15, 0.35, 1800);
-
-    // Confetti flutter / paper tear
-    setTimeout(() => {
-      if (!this.ctx || this.isMuted) return;
-      this.playNoise(this.ctx.currentTime, 0.25, 0.1, 3500);
-      this.playJingleBells(1);
-    }, 80);
+    this.playSharedNoise(time, 0.12, 0.3, 1600);
   }
 
-  // --- SPARKLER / FOUNTAIN HISS & CRACKLE ---
+  // --- ZERO-ALLOCATION SPARKLER CRACKLE ---
   playSparklerCrackle() {
     this.ensureContext();
-    if (!this.ctx || this.isMuted) return;
+    if (!this.ctx || this.isMuted || !this.cachedNoiseBuffer) return;
 
     const time = this.ctx.currentTime;
-    // Tiny crackle pop
-    const bufferSize = this.ctx.sampleRate * 0.04;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
-    }
-
     const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = this.cachedNoiseBuffer;
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'highpass';
-    filter.frequency.value = 2400 + Math.random() * 1000;
+    filter.frequency.value = 2600 + Math.random() * 800;
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.12 + Math.random() * 0.08, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+    gain.gain.setValueAtTime(0.12, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.035);
 
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.sfxGain);
 
-    noise.start(time);
+    const offset = Math.random() * 1.5;
+    noise.start(time, offset, 0.035);
   }
 
   // --- SNOWBALL THROW WHOOSH ---
@@ -278,101 +256,84 @@ export class SoundManager {
     const gain = this.ctx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(180, time);
-    osc.frequency.exponentialRampToValueAtTime(380, time + 0.15);
-    osc.frequency.exponentialRampToValueAtTime(120, time + 0.3);
+    osc.frequency.exponentialRampToValueAtTime(360, time + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(120, time + 0.25);
 
     gain.gain.setValueAtTime(0.01, time);
-    gain.gain.linearRampToValueAtTime(0.15, time + 0.12);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+    gain.gain.linearRampToValueAtTime(0.14, time + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(time);
-    osc.stop(time + 0.3);
+    osc.stop(time + 0.25);
   }
 
-  // --- SNOWBALL IMPACT (SOFT CRUNCH / SPLAT) ---
+  // --- SNOWBALL IMPACT ---
   playSnowballImpact() {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
 
     const time = this.ctx.currentTime;
-    // Low thud
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(160, time);
-    osc.frequency.exponentialRampToValueAtTime(45, time + 0.12);
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
 
-    gain.gain.setValueAtTime(0.3, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+    gain.gain.setValueAtTime(0.28, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(time);
-    osc.stop(time + 0.12);
+    osc.stop(time + 0.1);
 
-    // Crunch noise
-    this.playNoise(time, 0.12, 0.25, 800);
+    this.playSharedNoise(time, 0.1, 0.2, 700);
   }
 
-  // --- SNOW FOOTSTEP CRUNCH ---
+  // --- ZERO-ALLOCATION SNOW FOOTSTEP CRUNCH ---
   playSnowStep() {
     this.ensureContext();
-    if (!this.ctx || this.isMuted) return;
+    if (!this.ctx || this.isMuted || !this.cachedCrunchBuffer) return;
 
     const time = this.ctx.currentTime;
-    const bufferSize = this.ctx.sampleRate * 0.08;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-    }
-
     const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 1100 + Math.random() * 300;
-    filter.Q.value = 1.8;
+    noise.buffer = this.cachedCrunchBuffer;
+    noise.playbackRate.value = 0.9 + Math.random() * 0.25;
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.08 + Math.random() * 0.04, time);
+    gain.gain.setValueAtTime(0.09, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
 
-    noise.connect(filter);
-    filter.connect(gain);
+    noise.connect(gain);
     gain.connect(this.sfxGain);
     noise.start(time);
   }
 
-  // --- GIFT UNWRAPPING FANFARE ---
+  // --- GIFT UNWRAP FANFARE ---
   playGiftUnwrap() {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
 
-    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.50];
     notes.forEach((freq, idx) => {
-      setTimeout(() => {
-        if (!this.ctx || this.isMuted) return;
-        const time = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, time);
+      const time = this.ctx.currentTime + idx * 0.1;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, time);
 
-        gain.gain.setValueAtTime(0.2, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.45);
+      gain.gain.setValueAtTime(0.18, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
 
-        osc.connect(gain);
-        gain.connect(this.sfxGain);
-        osc.start(time);
-        osc.stop(time + 0.45);
-      }, idx * 110);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(time);
+      osc.stop(time + 0.4);
     });
 
-    setTimeout(() => this.playJingleBells(2), 400);
+    setTimeout(() => this.playJingleBells(2), 350);
   }
 
   // --- HOT COCOA SIP ---
@@ -385,28 +346,22 @@ export class SoundManager {
     const gain = this.ctx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(320, time);
-    osc.frequency.linearRampToValueAtTime(450, time + 0.2);
+    osc.frequency.linearRampToValueAtTime(460, time + 0.18);
 
     gain.gain.setValueAtTime(0.08, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
     osc.start(time);
-    osc.stop(time + 0.25);
+    osc.stop(time + 0.22);
   }
 
-  // --- HELPER NOISE BURST ---
-  playNoise(time, duration, volume, filterFreq) {
-    const bufferSize = this.ctx.sampleRate * duration;
-    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
-    }
-
+  // Reusable helper: uses pre-built noise buffer with zero allocation
+  playSharedNoise(time, duration, volume, filterFreq) {
+    if (!this.cachedNoiseBuffer) return;
     const noise = this.ctx.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = this.cachedNoiseBuffer;
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -420,48 +375,24 @@ export class SoundManager {
     filter.connect(gain);
     gain.connect(this.sfxGain);
 
-    noise.start(time);
+    const offset = Math.random() * 1.0;
+    noise.start(time, offset, duration);
   }
 
-  playPop(time, volume) {
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(400 + Math.random() * 600, time);
-    osc.frequency.exponentialRampToValueAtTime(80, time + 0.04);
-
-    gain.gain.setValueAtTime(volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-
-    osc.connect(gain);
-    gain.connect(this.sfxGain);
-    osc.start(time);
-    osc.stop(time + 0.04);
-  }
-
-  // --- BACKGROUND HOLIDAY CHIMES & CARILLON MUSIC ---
-  // Gentle, cozy carillon rendition of festive favorites
+  // --- CARILLON MUSIC ---
   startMusic() {
     if (!this.musicPlaying || this.musicTimer) return;
 
-    // Melody 1: Jingle Bells excerpt
     const jingleBells = [
       { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.5 },
       { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.5 },
       { note: 659.25, dur: 0.25 }, { note: 783.99, dur: 0.25 }, { note: 523.25, dur: 0.35 }, { note: 587.33, dur: 0.15 },
-      { note: 659.25, dur: 0.8 },
-      { note: 698.46, dur: 0.25 }, { note: 698.46, dur: 0.25 }, { note: 698.46, dur: 0.35 }, { note: 698.46, dur: 0.15 },
-      { note: 698.46, dur: 0.25 }, { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.25 }, { note: 659.25, dur: 0.25 },
-      { note: 659.25, dur: 0.25 }, { note: 587.33, dur: 0.25 }, { note: 587.33, dur: 0.25 }, { note: 659.25, dur: 0.25 },
-      { note: 587.33, dur: 0.5 }, { note: 783.99, dur: 0.5 }
+      { note: 659.25, dur: 0.8 }
     ];
 
-    // Melody 2: We Wish You A Merry Christmas
     const merryChristmas = [
-      { note: 523.25, dur: 0.3 }, { note: 698.46, dur: 0.3 }, { note: 698.46, dur: 0.15 }, { note: 783.99, dur: 0.15 }, { note: 698.46, dur: 0.15 }, { note: 659.25, dur: 0.15 },
-      { note: 587.33, dur: 0.3 }, { note: 587.33, dur: 0.3 }, { note: 587.33, dur: 0.3 },
-      { note: 783.99, dur: 0.3 }, { note: 783.99, dur: 0.15 }, { note: 880.00, dur: 0.15 }, { note: 783.99, dur: 0.15 }, { note: 698.46, dur: 0.15 },
-      { note: 659.25, dur: 0.3 }, { note: 523.25, dur: 0.3 }, { note: 523.25, dur: 0.3 }
+      { note: 523.25, dur: 0.3 }, { note: 698.46, dur: 0.3 }, { note: 698.46, dur: 0.15 }, { note: 783.99, dur: 0.15 },
+      { note: 698.46, dur: 0.15 }, { note: 659.25, dur: 0.15 }, { note: 587.33, dur: 0.3 }, { note: 587.33, dur: 0.3 }
     ];
 
     const melodies = [jingleBells, merryChristmas];
@@ -477,14 +408,13 @@ export class SoundManager {
       const item = currentMelody[noteIdx];
 
       if (item) {
-        this.playCarillonNote(item.note, item.dur * 1.4);
+        this.playCarillonNote(item.note, item.dur * 1.3);
         noteIdx++;
-        const nextDelay = item.dur * 1000 * 1.35;
-        this.musicTimer = setTimeout(playNextNote, nextDelay);
+        this.musicTimer = setTimeout(playNextNote, item.dur * 1000 * 1.35);
       } else {
         noteIdx = 0;
         this.currentMelodyIndex = (this.currentMelodyIndex + 1) % melodies.length;
-        this.musicTimer = setTimeout(playNextNote, 3200); // gentle pause between songs
+        this.musicTimer = setTimeout(playNextNote, 3000);
       }
     };
 
@@ -500,27 +430,14 @@ export class SoundManager {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, now);
 
-    // Warm subtle bell harmonic
-    const osc2 = this.ctx.createOscillator();
-    const gain2 = this.ctx.createGain();
-    osc2.type = 'triangle';
-    osc2.frequency.setValueAtTime(freq * 2.02, now);
-
     gain.gain.setValueAtTime(0.08, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
-    gain2.gain.setValueAtTime(0.02, now);
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + duration * 0.7);
-
     osc.connect(gain);
-    osc2.connect(gain2);
     gain.connect(this.musicGain);
-    gain2.connect(this.musicGain);
 
     osc.start(now);
-    osc2.start(now);
     osc.stop(now + duration);
-    osc2.stop(now + duration);
   }
 
   toggleMusic() {

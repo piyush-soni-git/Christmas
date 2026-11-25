@@ -19,13 +19,16 @@ class ChristmasSimulator {
     this.ui = new UIManager(this);
 
     this.currentInteractable = null;
+    this.frameCount = 0;
+    this.lastFpsUpdate = performance.now();
+    this.fps = 60;
+
     this.initAudioUnlock();
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
   }
 
   initAudioUnlock() {
-    // Unlock AudioContext on first user interaction
     const unlock = () => {
       this.sound.ensureContext();
       window.removeEventListener('click', unlock);
@@ -40,63 +43,62 @@ class ChristmasSimulator {
   useActiveItem() {
     this.sound.ensureContext();
     const slot = this.ui.activeSlot;
-    const playerPos = this.player.position.clone();
+    const playerPos = this.player.position;
     const forward = this.player.getForwardDirection();
 
     switch (slot) {
-      case 1: // Snowball Blaster
+      case 1:
         this.fireworks.throwSnowball(playerPos, forward);
         this.ui.addCheer(2);
         break;
 
-      case 2: // Star Sky Rocket Firework
-        const rocketStart = playerPos.clone().add(forward.clone().multiplyScalar(2.0));
+      case 2:
+        const rocketStart = playerPos.clone().addScaledVector(forward, 2.0);
         this.fireworks.launchRocket(rocketStart);
         this.ui.addCheer(6);
         this.ui.showToast('🚀 Sky Rocket launched! Watch the night sky burst!');
         break;
 
-      case 3: // Pine Fountain Cracker
-        const fPos = playerPos.clone().add(forward.clone().multiplyScalar(2.2));
+      case 3:
+        const fPos = playerPos.clone().addScaledVector(forward, 2.2);
         this.fireworks.plantFountain(fPos);
         this.ui.addCheer(8);
         this.ui.showToast('🌋 Pine Fountain ignited! Roaring golden sparks!');
         break;
 
-      case 4: // Handheld Sparkler
+      case 4:
         const msg = this.fireworks.toggleSparkler();
         this.ui.showToast(msg);
         this.ui.addCheer(4);
         break;
 
-      case 5: // Christmas Party Cracker
+      case 5:
         this.fireworks.pullChristmasCracker(playerPos, forward);
         this.ui.addCheer(10);
         this.ui.showToast('🍬 SNAP! Party Cracker pulled with confetti burst!');
         break;
 
-      case 6: // Mystery Gift
-        // First check if near placed gift to unwrap
+      case 6:
         const unwrapMsg = this.fireworks.unwrapNearestGift(playerPos);
         if (unwrapMsg) {
           this.ui.showToast(unwrapMsg);
           this.ui.addCheer(20);
         } else {
-          const gPos = playerPos.clone().add(forward.clone().multiplyScalar(1.8));
+          const gPos = playerPos.clone().addScaledVector(forward, 1.8);
           const placeMsg = this.fireworks.placeGiftBox(gPos);
           this.ui.showToast(placeMsg);
           this.ui.addCheer(5);
         }
         break;
 
-      case 7: // Hot Cocoa
+      case 7:
         this.sound.playSip();
         this.ui.addCheer(12);
         this.ui.showToast('☕ Ahh! Sweet, warming hot chocolate! (+12 Cheer)');
         break;
 
-      case 8: // Cathedral Bell Carillon
-        this.sound.playChurchBell(196); // Deep G3 note
+      case 8:
+        this.sound.playChurchBell(196);
         this.village.ringBell();
         this.ui.addCheer(15);
         this.ui.showToast('🔔 Majestic Cathedral bell chimes resound across the mountains!');
@@ -108,7 +110,7 @@ class ChristmasSimulator {
     if (this.currentInteractable) {
       const result = this.currentInteractable.onInteract();
       if (this.currentInteractable.id === 'cathedral_bell') {
-        this.sound.playChurchBell(220); // A3 chime
+        this.sound.playChurchBell(220);
         this.ui.addCheer(15);
       } else if (this.currentInteractable.id === 'santas_sleigh') {
         this.sound.playJingleBells(4);
@@ -135,7 +137,8 @@ class ChristmasSimulator {
     let closest = null;
     let minDist = Infinity;
 
-    for (const item of this.village.interactables) {
+    for (let i = 0; i < this.village.interactables.length; i++) {
+      const item = this.village.interactables[i];
       const dist = pPos.distanceTo(item.pos);
       if (dist < item.radius && dist < minDist) {
         minDist = dist;
@@ -152,10 +155,27 @@ class ChristmasSimulator {
     }
   }
 
+  // --- REELS-STYLE FRAME-PERFECT RENDER LOOP ---
   animate() {
     requestAnimationFrame(this.animate);
 
-    const delta = Math.min(this.world.clock.getDelta(), 0.1);
+    // Clamp delta to avoid physics stutter on tab switches
+    const rawDelta = this.world.clock.getDelta();
+    const delta = Math.min(rawDelta, 0.05);
+
+    // Dynamic FPS & Quality Scaling
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastFpsUpdate >= 1000) {
+      this.fps = this.frameCount;
+      this.frameCount = 0;
+      this.lastFpsUpdate = now;
+
+      // Adaptive performance scaling: If FPS drops below 40, dynamically downscale pixel ratio
+      if (this.fps < 40 && this.world.renderer.getPixelRatio() > 1.0) {
+        this.world.renderer.setPixelRatio(1.0);
+      }
+    }
 
     this.player.update(delta);
     this.world.update(delta, this.player.position);
